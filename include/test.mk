@@ -13,6 +13,17 @@ DEBUG_PRINTS ?= 0
 OPTIMIZATIONS=-O2 -ggdb
 CFLAGS_LTO =
 CFLAGS_GCOV =
+LIBS = -lefivar
+BACKTRACE_DEFINES ?=
+
+INCL_LIBUNWIND = '\#include <libunwind.h>'
+HAVE_LIBUNWIND := $(shell echo $(INCL_LIBUNWIND) | $(CC) -E - >/dev/null 2>&1 && echo 1 || echo 0)
+
+ifeq ($(HAVE_LIBUNWIND),1)
+BACKTRACE_DEFINES = -DHAVE_LIBUNWIND
+LIBS += -lunwind
+endif
+
 CFLAGS = $(OPTIMIZATIONS) -std=gnu11 \
 	 -isystem $(TOPDIR)/include/system \
 	 $(EFI_INCLUDES) \
@@ -44,7 +55,8 @@ CFLAGS = $(OPTIMIZATIONS) -std=gnu11 \
 	 -DEFI_FUNCTION_WRAPPER \
 	 -DGNU_EFI_USE_MS_ABI -DPAGE_SIZE=4096 \
 	 -DSHIM_UNIT_TEST \
-	 "-DDEFAULT_DEBUG_PRINT_STATE=$(DEBUG_PRINTS)"
+	 "-DDEFAULT_DEBUG_PRINT_STATE=$(DEBUG_PRINTS)" \
+	 $(BACKTRACE_DEFINES)
 
 # On some systems (e.g. Arch Linux), limits.h is in the "include-fixed" instead
 # of the "include" directory
@@ -109,7 +121,7 @@ tests := $(patsubst %.c,%,$(wildcard test-*.c))
 $(tests) :: test-% : | libefi-test.a
 
 $(tests) :: test-% : test.c test-%.c $(test-%_FILES)
-	$(CC) $(CFLAGS) -o $@ $(sort $^ $(wildcard $*.c) $(test-$*_FILES)) libefi-test.a -lefivar
+	$(CC) $(CFLAGS) -o $@ $(sort $^ $(wildcard $*.c) $(test-$*_FILES)) libefi-test.a $(LIBS)
 	$(VALGRIND) ./$@
 
 test : $(tests)
